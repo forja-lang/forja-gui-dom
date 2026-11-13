@@ -36,11 +36,12 @@
   </details>
 
   <script type="module">
-    import init, { renderizar_dom, version } from "./pkg/forja_wasm_gui.js";
+    import init, { renderizar_dom, version, diagnostico_dom } from "./pkg/forja_wasm_gui.js";
 
     const CODIGO = `
 variable tareas = 0
 variable pestana = "lista"
+variable vista = "hoy"
 variable titulo = ""
 
 funcion main() {
@@ -70,7 +71,13 @@ funcion main() {
             pestana("opciones", "Opciones",
                 columna(
                     etiqueta("Contador y reinicio."),
-                    boton("Reiniciar contador", reiniciar)
+                    boton("Reiniciar contador", reiniciar),
+                    seleccion_lista("vista", "Qué ver", "hoy",
+                        opcion("hoy", "Hoy"),
+                        opcion("semana", "Esta semana"),
+                        opcion("todo", "Todo")
+                    ),
+                    fila(etiqueta("Elegiste:"), etiqueta_dinamica("vista"))
                 )
             )
         ),
@@ -107,6 +114,9 @@ funcion reiniciar() {
       const respuesta = renderizar_dom("app", CODIGO);
       if (respuesta === "ok") {
         estado.textContent = "Renderizado como DOM real (revisá el árbol en DevTools).";
+        if (new URLSearchParams(location.search).get("debug") === "1") {
+          estado.textContent = diagnostico_dom();
+        }
       } else {
         estado.textContent = "El runtime respondió: " + respuesta;
       }
@@ -129,8 +139,13 @@ funcion reiniciar() {
           app.querySelector('[data-fg-accion="tab:pestana:detalle"]').click();
           setTimeout(() => {
             // Diálogo nativo: la acción "abrir:confirmar" lo abre.
-            app.querySelector('[data-fg-accion="abrir:confirmar"]').click();
+            // Selección en lista: convención sel:<var>:<valor> (repinta).
+            app.querySelector('[data-fg-accion="sel:vista:semana"]').click();
           }, 200);
+          // El diálogo se abre al final: cualquier repintado lo vuelve a crear cerrado.
+          setTimeout(() => {
+            app.querySelector('[data-fg-accion="abrir:confirmar"]').click();
+          }, 300);
           // Binding de ida: escribir en el campo actualiza la variable del programa.
           const entrada = app.querySelector('input[data-fg-variable="titulo"]');
           entrada.value = "pan integral";

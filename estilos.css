@@ -108,6 +108,116 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 
 progress { width: 100%; height: .7rem; }
 
+/* ─── Pestañas (ARIA tablist) ────────────────────────────────────── */
+
+.fg-pestanas {
+  display: flex;
+  gap: .25rem;
+  border-bottom: 1px solid var(--fg-borde);
+  margin: 1rem 0 0;
+}
+.fg-pestana {
+  padding: .5rem .85rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #555;
+  font: inherit;
+  cursor: pointer;
+}
+.fg-pestana:hover { color: var(--fg-tinta); }
+.fg-pestana[aria-selected="true"] {
+  color: var(--fg-acento);
+  border-bottom-color: var(--fg-acento);
+  font-weight: 600;
+}
+.fg-panel { padding: .8rem 0; }
+.fg-panel[hidden] { display: none; }
+
+/* ─── Selección en lista (ARIA listbox) ──────────────────────────── */
+
+.fg-etiqueta-grupo { display: block; font-size: .9rem; color: #555; margin: .4rem 0 .1rem; }
+
+.fg-opciones {
+  list-style: none;
+  padding: 0;
+  margin: .4rem 0;
+  border: 1px solid var(--fg-borde);
+  border-radius: .5rem;
+  overflow: hidden;
+  background: #fff;
+}
+.fg-opcion {
+  display: block;
+  width: 100%;
+  padding: .55rem .8rem;
+  border: 0;
+  border-bottom: 1px solid var(--fg-borde);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fg-opcion:last-child { border-bottom: 0; }
+.fg-opcion:hover { background: #f4f4f1; }
+.fg-opcion[aria-selected="true"] {
+  background: #e3f2e9;
+  font-weight: 600;
+}
+
+/* ─── Plegable (<details>) ───────────────────────────────────────── */
+
+.fg-plegable {
+  border: 1px solid var(--fg-borde);
+  border-radius: .5rem;
+  padding: .5rem .8rem;
+  margin: .6rem 0;
+  background: #fff;
+}
+.fg-plegable > summary { cursor: pointer; font-weight: 600; }
+.fg-plegable[open] > summary { margin-bottom: .5rem; }
+
+/* ─── Pestañas (ARIA tablist) ────────────────────────────────────── */
+
+.fg-pestanas {
+  display: flex;
+  gap: .25rem;
+  border-bottom: 1px solid var(--fg-borde);
+  margin: 1rem 0 0;
+}
+.fg-pestana {
+  padding: .5rem .85rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #555;
+  font: inherit;
+  cursor: pointer;
+}
+.fg-pestana[aria-selected="true"] {
+  color: var(--fg-acento);
+  border-bottom-color: var(--fg-acento);
+  font-weight: 600;
+}
+.fg-panel { padding: .8rem 0; }
+.fg-panel[hidden] { display: none; }
+
+/* ─── Plegable (<details>) ───────────────────────────────────────── */
+
+.fg-plegable {
+  border: 1px solid var(--fg-borde);
+  border-radius: .5rem;
+  padding: .5rem .8rem;
+  margin: .6rem 0;
+  background: #fff;
+}
+.fg-plegable > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.fg-plegable[open] > summary { margin-bottom: .5rem; }
+
 nav ul { display: flex; gap: 1rem; list-style: none; padding: 0; margin: 0 0 1rem; }
 nav a { color: var(--fg-acento); text-decoration: none; }
 nav a:hover { text-decoration: underline; }

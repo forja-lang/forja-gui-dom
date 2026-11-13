@@ -1,6 +1,23 @@
 /* @ts-self-types="./forja_wasm_gui.d.ts" */
 
 /**
+ * Diagnóstico del modo DOM (para depurar en el navegador).
+ * @returns {string}
+ */
+export function diagnostico_dom() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.diagnostico_dom();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Ejecuta código Forja en modo GUI y lo renderiza.
  * Atajo para renderizar + eventos.
  * @param {string} canvas_id
@@ -347,7 +364,7 @@ function __wbg_get_imports() {
         },
         __wbindgen_generic_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("MouseEvent")], shim_idx: 5, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_ae6219fea3adbad4___features__gen_MouseEvent__MouseEvent______true__6);
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_ae6219fea3adbad4___features__gen_MouseEvent__MouseEvent______true__7);
             return ret;
         },
         __wbindgen_generic_0000000000000003: function(arg0, arg1) {
@@ -374,8 +391,8 @@ function wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_
     wasm.wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_ae6219fea3adbad4___features__gen_MouseEvent__MouseEvent______true_(arg0, arg1, arg2);
 }
 
-function wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_ae6219fea3adbad4___features__gen_MouseEvent__MouseEvent______true__6(arg0, arg1, arg2) {
-    wasm.wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_ae6219fea3adbad4___features__gen_MouseEvent__MouseEvent______true__6(arg0, arg1, arg2);
+function wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_ae6219fea3adbad4___features__gen_MouseEvent__MouseEvent______true__7(arg0, arg1, arg2) {
+    wasm.wasm_bindgen_56ca16e51643e7dd___convert__closures_____invoke___web_sys_ae6219fea3adbad4___features__gen_MouseEvent__MouseEvent______true__7(arg0, arg1, arg2);
 }
 
 function addToExternrefTable0(obj) {
