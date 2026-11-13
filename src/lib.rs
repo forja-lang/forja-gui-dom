@@ -66,6 +66,62 @@ pub enum Nodo {
     Imagen { src: String, alt: String },
     /// Separador.
     Separador,
+    /// Desplegable con etiqueta accesible. `opciones` es (valor, etiqueta).
+    Seleccion {
+        nombre: String,
+        etiqueta: String,
+        opciones: Vec<(String, String)>,
+        seleccionada: String,
+    },
+    /// Área de texto multilínea.
+    AreaTexto {
+        nombre: String,
+        valor: String,
+        marcador: String,
+        filas: u32,
+    },
+    /// Grupo de campos con leyenda (`fieldset`/`legend`).
+    GrupoCampos { leyenda: String, hijos: Vec<Nodo> },
+    /// Barra de progreso con etiqueta accesible.
+    Progreso {
+        valor: f64,
+        maximo: f64,
+        etiqueta: String,
+    },
+    /// Insignia/chip de estado.
+    Insignia { texto: String, tono: Tono },
+    /// Tarjeta: sección con título.
+    Tarjeta { titulo: String, hijos: Vec<Nodo> },
+    /// Mensaje de aviso, con `role` según la gravedad.
+    Aviso { texto: String, nivel: NivelAviso },
+    /// Navegación con enlaces.
+    Navegacion { enlaces: Vec<(String, String)> },
+    /// Diálogo nativo (`<dialog>`), accesible por el navegador.
+    Dialogo {
+        id: String,
+        titulo: String,
+        hijos: Vec<Nodo>,
+        abierto: bool,
+    },
+    /// Indicador de carga (`aria-busy`).
+    Cargando { texto: String },
+}
+
+/// Tono visual de una insignia (el color lo pone el CSS).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tono {
+    Neutro,
+    Exito,
+    Aviso,
+    Error,
+}
+
+/// Gravedad de un aviso: define el `role` para lectores de pantalla.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NivelAviso {
+    Informacion,
+    Advertencia,
+    Error,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -287,6 +343,146 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
             );
         }
         Nodo::Separador => salida.push_str("<hr>"),
+        Nodo::Seleccion {
+            nombre,
+            etiqueta,
+            opciones,
+            seleccionada,
+        } => {
+            let id = format!("fg-{nombre}");
+            let elegida = estado
+                .and_then(|e| e.obtener(nombre))
+                .unwrap_or(seleccionada);
+            let _ = write!(
+                salida,
+                "<label for=\"{id}\">{}</label>                 <select id=\"{id}\" name=\"{}\" data-fg-variable=\"{}\">",
+                escapar(etiqueta),
+                escapar(nombre),
+                escapar(nombre)
+            );
+            for (valor, texto) in opciones {
+                let marcada = if valor == elegida { " selected" } else { "" };
+                let _ = write!(
+                    salida,
+                    "<option value=\"{}\"{marcada}>{}</option>",
+                    escapar(valor),
+                    escapar(texto)
+                );
+            }
+            salida.push_str("</select>");
+        }
+        Nodo::AreaTexto {
+            nombre,
+            valor,
+            marcador,
+            filas,
+        } => {
+            let id = format!("fg-{nombre}");
+            let contenido = estado
+                .and_then(|e| e.obtener(nombre))
+                .unwrap_or(valor);
+            let _ = write!(
+                salida,
+                "<label for=\"{id}\">{}</label>                 <textarea id=\"{id}\" name=\"{}\" data-fg-variable=\"{}\" rows=\"{}\" placeholder=\"{}\">{}</textarea>",
+                escapar(nombre),
+                escapar(nombre),
+                escapar(nombre),
+                (*filas).clamp(1, 40),
+                escapar(marcador),
+                escapar(contenido)
+            );
+        }
+        Nodo::GrupoCampos { leyenda, hijos } => {
+            let _ = write!(salida, "<fieldset><legend>{}</legend>", escapar(leyenda));
+            for hijo in hijos {
+                escribir(hijo, salida, estado);
+            }
+            salida.push_str("</fieldset>");
+        }
+        Nodo::Progreso {
+            valor,
+            maximo,
+            etiqueta,
+        } => {
+            let maximo = if *maximo <= 0.0 { 1.0 } else { *maximo };
+            let valor = valor.clamp(0.0, maximo);
+            let porcentaje = ((valor / maximo) * 100.0).round() as i64;
+            let _ = write!(
+                salida,
+                "<progress value=\"{}\" max=\"{}\" aria-label=\"{}\" aria-valuenow=\"{}\" aria-valuemin=\"0\" aria-valuemax=\"100\"></progress>",
+                valor, maximo, escapar(etiqueta), porcentaje
+            );
+        }
+        Nodo::Insignia { texto, tono } => {
+            let clase = match tono {
+                Tono::Neutro => "fg-insignia",
+                Tono::Exito => "fg-insignia fg-insignia-exito",
+                Tono::Aviso => "fg-insignia fg-insignia-aviso",
+                Tono::Error => "fg-insignia fg-insignia-error",
+            };
+            let _ = write!(salida, "<span class=\"{clase}\">{}</span>", escapar(texto));
+        }
+        Nodo::Tarjeta { titulo, hijos } => {
+            let _ = write!(
+                salida,
+                "<section class=\"fg-tarjeta\"><h2>{}</h2>",
+                escapar(titulo)
+            );
+            for hijo in hijos {
+                escribir(hijo, salida, estado);
+            }
+            salida.push_str("</section>");
+        }
+        Nodo::Aviso { texto, nivel } => {
+            let (clase, role) = match nivel {
+                NivelAviso::Informacion => ("fg-aviso fg-aviso-info", "note"),
+                NivelAviso::Advertencia => ("fg-aviso fg-aviso-aviso", "status"),
+                NivelAviso::Error => ("fg-aviso fg-aviso-error", "alert"),
+            };
+            let _ = write!(
+                salida,
+                "<p class=\"{clase}\" role=\"{role}\">{}</p>",
+                escapar(texto)
+            );
+        }
+        Nodo::Navegacion { enlaces } => {
+            salida.push_str("<nav><ul>");
+            for (href, texto) in enlaces {
+                let _ = write!(
+                    salida,
+                    "<li><a href=\"{}\">{}</a></li>",
+                    escapar(href),
+                    escapar(texto)
+                );
+            }
+            salida.push_str("</ul></nav>");
+        }
+        Nodo::Dialogo {
+            id,
+            titulo,
+            hijos,
+            abierto,
+        } => {
+            let abierto = if *abierto { " open" } else { "" };
+            let _ = write!(
+                salida,
+                "<dialog id=\"fg-dialogo-{}\" aria-label=\"{}\"{abierto}><h2>{}</h2>",
+                escapar(id),
+                escapar(titulo),
+                escapar(titulo)
+            );
+            for hijo in hijos {
+                escribir(hijo, salida, estado);
+            }
+            salida.push_str("</dialog>");
+        }
+        Nodo::Cargando { texto } => {
+            let _ = write!(
+                salida,
+                "<p class=\"fg-cargando\" aria-busy=\"true\" role=\"status\">{}</p>",
+                escapar(texto)
+            );
+        }
     }
 }
 
@@ -544,6 +740,160 @@ mod tests {
         assert_eq!(variables(&arbol), vec!["filtro"]);
     }
 
+
+    #[test]
+    fn seleccion_con_opciones_y_valor_del_estado() {
+        let nodo = Nodo::Seleccion {
+            nombre: "pais".into(),
+            etiqueta: "País".into(),
+            opciones: vec![
+                ("ar".into(), "Argentina".into()),
+                ("uy".into(), "Uruguay".into()),
+            ],
+            seleccionada: "ar".into(),
+        };
+        let html = render(&nodo);
+        assert!(html.contains("<label for=\"fg-pais\">País</label>"));
+        assert!(html.contains("data-fg-variable=\"pais\""));
+        assert!(html.contains("<option value=\"ar\" selected>Argentina</option>"));
+        assert!(html.contains("<option value=\"uy\">Uruguay</option>"));
+
+        let mut estado = Estado::nuevo();
+        estado.fijar("pais", "uy");
+        let con_estado = render_con_estado(&nodo, &estado);
+        assert!(con_estado.contains("<option value=\"uy\" selected>"));
+        assert!(!con_estado.contains("value=\"ar\" selected"));
+    }
+
+    #[test]
+    fn area_texto_con_filas_y_valor() {
+        let nodo = Nodo::AreaTexto {
+            nombre: "notas".into(),
+            valor: "hola".into(),
+            marcador: "escribí acá".into(),
+            filas: 0,
+        };
+        let html = render(&nodo);
+        assert!(html.contains("<textarea id=\"fg-notas\" name=\"notas\""));
+        assert!(html.contains("rows=\"1\"")); // se limita a 1 como mínimo
+        assert!(html.contains(">hola</textarea>"));
+
+        let mut estado = Estado::nuevo();
+        estado.fijar("notas", "<b>x</b>");
+        assert!(render_con_estado(&nodo, &estado).contains("&lt;b&gt;x&lt;/b&gt;</textarea>"));
+    }
+
+    #[test]
+    fn grupo_campos_progreso_e_insignias() {
+        let grupo = render(&Nodo::GrupoCampos {
+            leyenda: "Datos".into(),
+            hijos: vec![Nodo::Parrafo("x".into())],
+        });
+        assert_eq!(grupo, "<fieldset><legend>Datos</legend><p>x</p></fieldset>");
+
+        let progreso = render(&Nodo::Progreso {
+            valor: 3.0,
+            maximo: 4.0,
+            etiqueta: "avance".into(),
+        });
+        assert!(progreso.contains("value=\"3\" max=\"4\""));
+        assert!(progreso.contains("aria-label=\"avance\""));
+        assert!(progreso.contains("aria-valuenow=\"75\""));
+
+        // maximo 0 no divide por cero.
+        let cero = render(&Nodo::Progreso {
+            valor: 1.0,
+            maximo: 0.0,
+            etiqueta: "x".into(),
+        });
+        assert!(cero.contains("max=\"1\""));
+
+        assert!(render(&Nodo::Insignia {
+            texto: "listo".into(),
+            tono: Tono::Exito
+        })
+        .contains("class=\"fg-insignia fg-insignia-exito\""));
+    }
+
+    #[test]
+    fn tarjeta_aviso_navegacion_dialogo_y_carga() {
+        let tarjeta = render(&Nodo::Tarjeta {
+            titulo: "Hoy".into(),
+            hijos: vec![Nodo::Parrafo("2 tareas".into())],
+        });
+        assert!(tarjeta.starts_with("<section class=\"fg-tarjeta\"><h2>Hoy</h2>"));
+        assert!(tarjeta.ends_with("</section>"));
+
+        // El rol cambia según la gravedad: un lector de pantalla lo anuncia.
+        assert!(render(&Nodo::Aviso {
+            texto: "falló".into(),
+            nivel: NivelAviso::Error
+        })
+        .contains("role=\"alert\""));
+        assert!(render(&Nodo::Aviso {
+            texto: "ojo".into(),
+            nivel: NivelAviso::Advertencia
+        })
+        .contains("role=\"status\""));
+        assert!(render(&Nodo::Aviso {
+            texto: "nota".into(),
+            nivel: NivelAviso::Informacion
+        })
+        .contains("role=\"note\""));
+
+        let nav = render(&Nodo::Navegacion {
+            enlaces: vec![("/a".into(), "A".into()), ("/b".into(), "B".into())],
+        });
+        assert_eq!(
+            nav,
+            "<nav><ul><li><a href=\"/a\">A</a></li><li><a href=\"/b\">B</a></li></ul></nav>"
+        );
+
+        let dialogo = render(&Nodo::Dialogo {
+            id: "confirmar".into(),
+            titulo: "¿Seguro?".into(),
+            hijos: vec![Nodo::Boton {
+                texto: "Sí".into(),
+                accion: "confirmar".into(),
+                variante: VarianteBoton::Primario,
+            }],
+            abierto: true,
+        });
+        assert!(dialogo.contains("id=\"fg-dialogo-confirmar\""));
+        assert!(dialogo.contains(" aria-label=\"¿Seguro?\" open>"));
+        assert!(dialogo.contains("data-fg-accion=\"confirmar\""));
+
+        assert!(render(&Nodo::Cargando {
+            texto: "cargando…".into()
+        })
+        .contains("aria-busy=\"true\""));
+    }
+
+    #[test]
+    fn acciones_dentro_de_contenedores_nuevos() {
+        let arbol = Nodo::Tarjeta {
+            titulo: "x".into(),
+            hijos: vec![Nodo::GrupoCampos {
+                leyenda: "y".into(),
+                hijos: vec![
+                    Nodo::Seleccion {
+                        nombre: "sel".into(),
+                        etiqueta: "S".into(),
+                        opciones: vec![],
+                        seleccionada: String::new(),
+                    },
+                    Nodo::Boton {
+                        texto: "Ir".into(),
+                        accion: "ir".into(),
+                        variante: VarianteBoton::Primario,
+                    },
+                ],
+            }],
+        };
+        assert_eq!(acciones(&arbol), vec!["ir"]);
+        assert_eq!(variables(&arbol), vec!["sel"]);
+    }
+
     #[test]
     fn arbol_anidado() {
         let arbol = Nodo::Lista {
@@ -652,7 +1002,11 @@ pub fn acciones(nodo: &Nodo) -> Vec<String> {
 fn recolectar_acciones(nodo: &Nodo, salida: &mut Vec<String>) {
     match nodo {
         Nodo::Boton { accion, .. } => salida.push(accion.clone()),
-        Nodo::Contenedor { hijos, .. } | Nodo::Lista { items: hijos, .. } => {
+        Nodo::Contenedor { hijos, .. }
+        | Nodo::Lista { items: hijos, .. }
+        | Nodo::GrupoCampos { hijos, .. }
+        | Nodo::Tarjeta { hijos, .. }
+        | Nodo::Dialogo { hijos, .. } => {
             for hijo in hijos {
                 recolectar_acciones(hijo, salida);
             }
@@ -678,12 +1032,19 @@ pub fn variables(nodo: &Nodo) -> Vec<String> {
 
 fn recolectar_variables(nodo: &Nodo, salida: &mut Vec<String>) {
     match nodo {
-        Nodo::Entrada { nombre, .. } | Nodo::Casilla { nombre, .. } => {
+        Nodo::Entrada { nombre, .. }
+        | Nodo::Casilla { nombre, .. }
+        | Nodo::Seleccion { nombre, .. }
+        | Nodo::AreaTexto { nombre, .. } => {
             if !salida.contains(nombre) {
                 salida.push(nombre.clone());
             }
         }
-        Nodo::Contenedor { hijos, .. } | Nodo::Lista { items: hijos, .. } => {
+        Nodo::Contenedor { hijos, .. }
+        | Nodo::Lista { items: hijos, .. }
+        | Nodo::GrupoCampos { hijos, .. }
+        | Nodo::Tarjeta { hijos, .. }
+        | Nodo::Dialogo { hijos, .. } => {
             for hijo in hijos {
                 recolectar_variables(hijo, salida);
             }
