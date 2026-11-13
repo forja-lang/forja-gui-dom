@@ -1304,7 +1304,6 @@ mod tests {
         assert!(!simple.contains("aria-sort"));
     }
 
-
     #[test]
     fn formulario_real_con_enter_y_post_sin_js() {
         let nodo = Nodo::Formulario {
