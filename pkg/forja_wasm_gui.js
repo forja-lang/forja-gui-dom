@@ -188,6 +188,9 @@ function __wbg_get_imports() {
         __wbg_clearRect_428f96a6ba73b2f4: function(arg0, arg1, arg2, arg3, arg4) {
             arg0.clearRect(arg1, arg2, arg3, arg4);
         },
+        __wbg_click_c6eff13daacf9806: function(arg0) {
+            arg0.click();
+        },
         __wbg_closePath_e9e11e034c5d75a3: function(arg0) {
             arg0.closePath();
         },
@@ -372,6 +375,9 @@ function __wbg_get_imports() {
         __wbg_parentElement_300cdd39ce1d95f8: function(arg0) {
             const ret = arg0.parentElement;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_preventDefault_cfb06b02e7406899: function(arg0) {
+            arg0.preventDefault();
         },
         __wbg_querySelectorAll_bd785907acdf7800: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.querySelectorAll(getStringFromWasm0(arg1, arg2));
