@@ -36,7 +36,7 @@
   </details>
 
   <script type="module">
-    import init, { renderizar_dom, version, diagnostico_dom } from "./pkg/forja_wasm_gui.js";
+    import init, { renderizar_dom, version, diagnostico_dom, repintar_completo } from "./pkg/forja_wasm_gui.js";
 
     const CODIGO = `
 variable tareas = 0
@@ -129,6 +129,32 @@ funcion reiniciar() {
     // callback del lenguaje (siguiente paso). Se muestra acá para que se vea.
     // Modo automático (para el test headless): simula dos clics y marca que
     // terminó, así se puede verificar que el callback del lenguaje corrió.
+    // Benchmark: mide cuánto cuesta una interacción (clics con actualización
+    // dirigida) y cuánto un render completo desde cero.
+    if (new URLSearchParams(location.search).get("bench") === "1") {
+      // Sincrónico a propósito: así el número es tiempo real (con
+      // --virtual-time-budget el reloj se detiene y mediría 0).
+      const N = 200;
+      const modoCompleto = new URLSearchParams(location.search).get("full") === "1";
+      const t0 = performance.now();
+      for (let i = 0; i < N; i++) {
+        if (modoCompleto) {
+          repintar_completo();
+        } else {
+          app.querySelector('[data-fg-accion="crear_tarea"]').click();
+        }
+      }
+      const porClic = (performance.now() - t0) / N;
+
+      const t1 = performance.now();
+      renderizar_dom("app", CODIGO);
+      const renderCompleto = performance.now() - t1;
+
+      const nodos = app.querySelectorAll("*").length;
+      document.getElementById("estado").textContent =
+        `bench: ${porClic.toFixed(2)} ms/actualizacion · render completo ${renderCompleto.toFixed(0)} ms · ${nodos} nodos`;
+    }
+
     // Diagnóstico aislado de la navegación por teclado en pestañas.
     if (new URLSearchParams(location.search).get("kbd") === "1") {
       setTimeout(() => {

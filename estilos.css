@@ -71,6 +71,40 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .fg-boton-secundario { background: transparent; color: var(--fg-acento); }
 .fg-boton:disabled { opacity: .55; cursor: not-allowed; }
 
+/* Botón sólo icono: cuadrado, con el texto accesible en aria-label. */
+.fg-boton-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* Cabecera de tabla ordenable */
+.fg-ordenar {
+  padding: .2rem .1rem;
+  border: 0;
+  background: none;
+  color: #555;
+  font: inherit;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.fg-ordenar:hover { color: var(--fg-tinta); }
+th[aria-sort="ascending"] .fg-ordenar::after { content: " ▲"; }
+th[aria-sort="descending"] .fg-ordenar::after { content: " ▼"; }
+
+/* Mensaje de validación de un campo */
+.fg-error {
+  margin: .15rem 0 .4rem;
+  font-size: .85rem;
+  color: var(--fg-error);
+}
+input[aria-invalid="true"] { border-color: var(--fg-error); }
+
 /* ─── Bloques ────────────────────────────────────────────────────── */
 
 .fg-tarjeta {
