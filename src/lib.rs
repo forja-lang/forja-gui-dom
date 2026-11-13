@@ -105,6 +105,18 @@ pub enum Nodo {
     },
     /// Indicador de carga (`aria-busy`).
     Cargando { texto: String },
+    /// Pestañas (patrón ARIA `tablist`/`tab`/`tabpanel`). La activa sale de la
+    /// variable ligada; cada pestaña dispara `tab:<variable>:<valor>`.
+    Pestanas {
+        variable: String,
+        items: Vec<(String, String, Vec<Nodo>)>,
+    },
+    /// Bloque plegable nativo (`<details>`/`<summary>`): foco y teclado gratis.
+    Plegable {
+        titulo: String,
+        hijos: Vec<Nodo>,
+        abierto: bool,
+    },
 }
 
 /// Tono visual de una insignia (el color lo pone el CSS).
@@ -471,6 +483,54 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
                 escribir(hijo, salida, estado);
             }
             salida.push_str("</dialog>");
+        }
+        Nodo::Pestanas { variable, items } => {
+            let activa = estado
+                .and_then(|e| e.obtener(variable))
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| items.first().map(|(valor, _, _)| valor.clone()).unwrap_or_default());
+            let _ = write!(salida, "<div class=\"fg-pestanas\" role=\"tablist\">");
+            for (valor, etiqueta, _) in items {
+                let seleccionada = valor == &activa;
+                let _ = write!(
+                    salida,
+                    "<button type=\"button\" role=\"tab\" class=\"fg-pestana\" aria-selected=\"{}\" data-fg-accion=\"tab:{}:{}\">{}</button>",
+                    if seleccionada { "true" } else { "false" },
+                    escapar(variable),
+                    escapar(valor),
+                    escapar(etiqueta)
+                );
+            }
+            salida.push_str("</div>");
+            for (valor, etiqueta, hijos) in items {
+                let visible = valor == &activa;
+                let _ = write!(
+                    salida,
+                    "<div class=\"fg-panel\" role=\"tabpanel\" aria-label=\"{}\"{}>",
+                    escapar(etiqueta),
+                    if visible { "" } else { " hidden" }
+                );
+                for hijo in hijos {
+                    escribir(hijo, salida, estado);
+                }
+                salida.push_str("</div>");
+            }
+        }
+        Nodo::Plegable {
+            titulo,
+            hijos,
+            abierto,
+        } => {
+            let _ = write!(
+                salida,
+                "<details class=\"fg-plegable\"{}><summary>{}</summary>",
+                if *abierto { " open" } else { "" },
+                escapar(titulo)
+            );
+            for hijo in hijos {
+                escribir(hijo, salida, estado);
+            }
+            salida.push_str("</details>");
         }
         Nodo::Cargando { texto } => {
             let _ = write!(
@@ -898,6 +958,63 @@ mod tests {
         assert_eq!(variables(&arbol), vec!["sel"]);
     }
 
+
+    #[test]
+    fn pestanas_aria_y_panel_activo() {
+        let nodo = Nodo::Pestanas {
+            variable: "pestana".into(),
+            items: vec![
+                (
+                    "lista".into(),
+                    "Lista".into(),
+                    vec![Nodo::Parrafo("tareas".into())],
+                ),
+                (
+                    "detalle".into(),
+                    "Detalle".into(),
+                    vec![Nodo::Parrafo("detalle".into())],
+                ),
+            ],
+        };
+
+        // Sin estado: activa la primera.
+        let html = render(&nodo);
+        assert!(html.contains("role=\"tablist\""));
+        assert!(html.contains("aria-selected=\"true\" data-fg-accion=\"tab:pestana:lista\""));
+        assert!(html.contains("aria-selected=\"false\" data-fg-accion=\"tab:pestana:detalle\""));
+        assert!(html.contains("<div class=\"fg-panel\" role=\"tabpanel\" aria-label=\"Lista\">"));
+        assert!(html.contains("aria-label=\"Detalle\" hidden>"));
+
+        // Con estado: cambia la activa y el panel oculto.
+        let mut estado = Estado::nuevo();
+        estado.fijar("pestana", "detalle");
+        let con_estado = render_con_estado(&nodo, &estado);
+        assert!(con_estado.contains("aria-selected=\"true\" data-fg-accion=\"tab:pestana:detalle\""));
+        assert!(con_estado.contains("aria-label=\"Lista\" hidden>"));
+        assert!(con_estado.contains("aria-label=\"Detalle\">"));
+
+        // La variable de las pestañas es un binding.
+        assert_eq!(variables(&nodo), vec!["pestana"]);
+    }
+
+    #[test]
+    fn plegable_nativo() {
+        let nodo = Nodo::Plegable {
+            titulo: "Opciones".into(),
+            hijos: vec![Nodo::Parrafo("adentro".into())],
+            abierto: true,
+        };
+        let html = render(&nodo);
+        assert!(html.starts_with("<details class=\"fg-plegable\" open><summary>Opciones</summary>"));
+        assert!(html.ends_with("</details>"));
+        assert!(!render(&Nodo::Plegable {
+            titulo: "x".into(),
+            hijos: vec![],
+            abierto: false
+        })
+        .contains(" open"));
+    }
+
     #[test]
     fn arbol_anidado() {
         let arbol = Nodo::Lista {
@@ -1010,9 +1127,17 @@ fn recolectar_acciones(nodo: &Nodo, salida: &mut Vec<String>) {
         | Nodo::Lista { items: hijos, .. }
         | Nodo::GrupoCampos { hijos, .. }
         | Nodo::Tarjeta { hijos, .. }
-        | Nodo::Dialogo { hijos, .. } => {
+        | Nodo::Dialogo { hijos, .. }
+        | Nodo::Plegable { hijos, .. } => {
             for hijo in hijos {
                 recolectar_acciones(hijo, salida);
+            }
+        }
+        Nodo::Pestanas { items, .. } => {
+            for (_, _, hijos) in items {
+                for hijo in hijos {
+                    recolectar_acciones(hijo, salida);
+                }
             }
         }
         Nodo::Tabla { filas, .. } => {
@@ -1055,9 +1180,20 @@ fn recolectar_variables(nodo: &Nodo, salida: &mut Vec<String>) {
         | Nodo::Lista { items: hijos, .. }
         | Nodo::GrupoCampos { hijos, .. }
         | Nodo::Tarjeta { hijos, .. }
-        | Nodo::Dialogo { hijos, .. } => {
+        | Nodo::Dialogo { hijos, .. }
+        | Nodo::Plegable { hijos, .. } => {
             for hijo in hijos {
                 recolectar_variables(hijo, salida);
+            }
+        }
+        Nodo::Pestanas { variable, items } => {
+            if !salida.contains(variable) {
+                salida.push(variable.clone());
+            }
+            for (_, _, hijos) in items {
+                for hijo in hijos {
+                    recolectar_variables(hijo, salida);
+                }
             }
         }
         Nodo::Tabla { filas, .. } => {
