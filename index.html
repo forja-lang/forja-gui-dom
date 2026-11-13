@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forja GUI DOM — demo</title>
+  <link rel="stylesheet" href="estilos.css">
+  <style>
+    body { max-width: 52rem; }
+    header.demo { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+    .demo-detalle { font-size: .85rem; color: #666; }
+    pre { background: #f4f4f1; padding: .8rem; border-radius: .4rem; overflow: auto; font-size: .8rem; }
+    details { margin-top: 2rem; }
+    #estado { font-size: .85rem; color: #666; }
+  </style>
+</head>
+<body>
+  <header class="demo">
+    <h1>Forja GUI DOM</h1>
+    <span class="demo-detalle" id="version"></span>
+  </header>
+
+  <p class="demo-detalle">
+    Esta interfaz la generó <strong>Forja</strong> compilado a WebAssembly y la pintó
+    como <strong>DOM real</strong> (no canvas): probá el foco con Tab, la selección de
+    texto, el zoom del navegador y un lector de pantalla.
+  </p>
+
+  <p id="estado">Cargando wasm…</p>
+
+  <main id="app"></main>
+
+  <details>
+    <summary>Código Forja de esta pantalla</summary>
+    <pre id="codigo"></pre>
+  </details>
+
+  <script type="module">
+    import init, { renderizar_dom, version } from "./pkg/forja_wasm_gui.js";
+
+    const CODIGO = `
+variable tareas = 0
+
+funcion main() {
+    columna(
+        fila(
+            titulo("Tareas"),
+            boton("Sumar una", crear_tarea)
+        ),
+        fila(
+            etiqueta("Pendientes:"),
+            etiqueta_dinamica("tareas")
+        ),
+        fila(
+            entrada_texto("titulo", "comprar pan"),
+            boton("Agregar", crear_tarea)
+        ),
+        etiqueta_dinamica("titulo"),
+        boton("Reiniciar", reiniciar),
+        espacio(12),
+        etiqueta("Hecho con Forja — sin frameworks de frontend")
+    )
+}
+
+funcion crear_tarea() {
+    tareas = tareas + 1
+}
+
+funcion reiniciar() {
+    tareas = 0
+}
+`;
+
+    const estado = document.getElementById("estado");
+    const app = document.getElementById("app");
+    document.getElementById("codigo").textContent = CODIGO;
+
+    try {
+      await init();
+      document.getElementById("version").textContent = version();
+      const respuesta = renderizar_dom("app", CODIGO);
+      if (respuesta === "ok") {
+        estado.textContent = "Renderizado como DOM real (revisá el árbol en DevTools).";
+      } else {
+        estado.textContent = "El runtime respondió: " + respuesta;
+      }
+    } catch (e) {
+      estado.textContent = "No se pudo cargar el wasm: " + e;
+      console.error(e);
+    }
+
+    // Los botones de Forja emiten su acción a consola hasta que se conecte el
+    // callback del lenguaje (siguiente paso). Se muestra acá para que se vea.
+    // Modo automático (para el test headless): simula dos clics y marca que
+    // terminó, así se puede verificar que el callback del lenguaje corrió.
+    if (new URLSearchParams(location.search).get("auto") === "1") {
+      // Un clic, espera el re-render (el botón se recrea) y otro clic.
+      setTimeout(() => {
+        app.querySelector('[data-fg-accion="crear_tarea"]').click();
+        setTimeout(() => {
+          app.querySelector('[data-fg-accion="crear_tarea"]').click();
+          // Binding de ida: escribir en el campo actualiza la variable del programa.
+          const entrada = app.querySelector('input[data-fg-variable="titulo"]');
+          entrada.value = "pan integral";
+          entrada.dispatchEvent(new Event("change", { bubbles: true }));
+          setTimeout(() => {
+            document.getElementById("estado").dataset.auto = "listo";
+          }, 150);
+        }, 400);
+      }, 300);
+    }
+
+    app.addEventListener("click", (evento) => {
+      const boton = evento.target.closest("[data-fg-accion]");
+      if (boton) {
+        estado.textContent = "acción declarada: " + boton.dataset.fgAccion;
+      }
+    });
+  </script>
+</body>
+</html>
