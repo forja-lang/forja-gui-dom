@@ -65,9 +65,16 @@ funcion main() {
         ),
         pestanas("pestana",
             pestana("lista", "Lista",
-                fila(
-                    entrada_texto("titulo", "comprar pan"),
-                    boton("Agregar", crear_tarea)
+                columna(
+                    aviso("Todo lo que ves lo armó Forja en wasm.", "informacion"),
+                    fila(
+                        entrada_texto("titulo", "comprar pan"),
+                        boton("Agregar", crear_tarea)
+                    ),
+                    tabla("Tarea", "Estado",
+                        renglon("comprar pan", insignia("pendiente", "neutro")),
+                        renglon("llamar al gasista", insignia("hecha", "exito"))
+                    )
                 )
             ),
             pestana("detalle", "Detalle",
