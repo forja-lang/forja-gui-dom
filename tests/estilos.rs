@@ -4,16 +4,11 @@
 //! Evita el fallo silencioso clásico: agregás un nodo, sale con una clase nueva
 //! y en pantalla queda sin estilo (y nadie se entera hasta verlo "raro").
 
-use forja_gui_dom::{
-    render, NivelAviso, Nodo, Tono, TipoEntrada, VarianteBoton,
-};
+use forja_gui_dom::{render, NivelAviso, Nodo, TipoEntrada, Tono, VarianteBoton};
 
 fn css() -> String {
-    std::fs::read_to_string(format!(
-        "{}/estilos.css",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .expect("no se pudo leer estilos.css")
+    std::fs::read_to_string(format!("{}/estilos.css", env!("CARGO_MANIFEST_DIR")))
+        .expect("no se pudo leer estilos.css")
 }
 
 /// Clases `fg-*` presentes en un HTML (sin repetir).
@@ -154,17 +149,16 @@ fn todas_las_clases_emitidas_estan_en_el_css() {
 #[test]
 fn el_arbol_completo_no_deja_marcas_sin_resolver() {
     let html = render(&arbol_completo());
-    assert!(!html.contains("{{"), "quedaron marcas de plantilla en el HTML");
+    assert!(
+        !html.contains("{{"),
+        "quedaron marcas de plantilla en el HTML"
+    );
     assert!(!html.contains("<script>"), "hay script sin escapar");
 }
 
 #[test]
 fn documento_incluye_todo_lo_necesario_para_accesibilidad() {
-    let html = forja_gui_dom::documento(
-        "Panel",
-        &arbol_completo(),
-        Some("/publico/estilos.css"),
-    );
+    let html = forja_gui_dom::documento("Panel", &arbol_completo(), Some("/publico/estilos.css"));
     assert!(html.starts_with("<!doctype html><html lang=\"es\">"));
     assert!(html.contains("<meta name=\"viewport\""));
     assert!(html.contains("<meta charset=\"utf-8\">"));

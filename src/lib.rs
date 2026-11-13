@@ -269,9 +269,7 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
         } => {
             let id = format!("fg-{nombre}");
             let requerido = if *requerido { " required" } else { "" };
-            let valor = estado
-                .and_then(|e| e.obtener(nombre))
-                .unwrap_or(valor);
+            let valor = estado.and_then(|e| e.obtener(nombre)).unwrap_or(valor);
             let _ = write!(
                 salida,
                 "<label for=\"{id}\">{}</label>\
@@ -378,9 +376,7 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
             filas,
         } => {
             let id = format!("fg-{nombre}");
-            let contenido = estado
-                .and_then(|e| e.obtener(nombre))
-                .unwrap_or(valor);
+            let contenido = estado.and_then(|e| e.obtener(nombre)).unwrap_or(valor);
             let _ = write!(
                 salida,
                 "<label for=\"{id}\">{}</label>                 <textarea id=\"{id}\" name=\"{}\" data-fg-variable=\"{}\" rows=\"{}\" placeholder=\"{}\">{}</textarea>",
@@ -561,7 +557,8 @@ mod tests {
             requerido: true,
         });
         assert!(html.contains("<label for=\"fg-email\">email</label>"));
-        assert!(html.contains("id=\"fg-email\" name=\"email\" data-fg-variable=\"email\" type=\"email\""));
+        assert!(html
+            .contains("id=\"fg-email\" name=\"email\" data-fg-variable=\"email\" type=\"email\""));
         assert!(html.contains("value=\"a@b\""));
         assert!(html.contains(" required"));
     }
@@ -634,7 +631,6 @@ mod tests {
         assert!(html.contains("<h1>T &amp; T</h1>"));
         assert!(!documento("t", &raiz, None).contains("stylesheet"));
     }
-
 
     #[test]
     fn estado_y_eventos() {
@@ -739,7 +735,6 @@ mod tests {
         // Sin repetir aunque aparezca dos veces.
         assert_eq!(variables(&arbol), vec!["filtro"]);
     }
-
 
     #[test]
     fn seleccion_con_opciones_y_valor_del_estado() {
@@ -867,6 +862,15 @@ mod tests {
             texto: "cargando…".into()
         })
         .contains("aria-busy=\"true\""));
+    }
+
+    #[test]
+    fn variables_incluye_bindings_de_solo_lectura() {
+        let arbol = Nodo::Contenedor {
+            hijos: vec![Nodo::Variable("contador".into())],
+            clase: String::new(),
+        };
+        assert_eq!(variables(&arbol), vec!["contador"]);
     }
 
     #[test]
@@ -1032,6 +1036,13 @@ pub fn variables(nodo: &Nodo) -> Vec<String> {
 
 fn recolectar_variables(nodo: &Nodo, salida: &mut Vec<String>) {
     match nodo {
+        // Una variable de solo lectura también es un binding: su valor inicial
+        // sale del programa, igual que el de un input.
+        Nodo::Variable(nombre) => {
+            if !salida.contains(nombre) {
+                salida.push(nombre.clone());
+            }
+        }
         Nodo::Entrada { nombre, .. }
         | Nodo::Casilla { nombre, .. }
         | Nodo::Seleccion { nombre, .. }

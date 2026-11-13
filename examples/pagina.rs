@@ -1,8 +1,6 @@
 //! Imprime una página completa de ejemplo. La usa `scripts/probar-dom.sh` para
 //! verificar con un DOM real (jsdom) que el HTML es válido y accesible.
-use forja_gui_dom::{
-    documento, NivelAviso, Nodo, TipoEntrada, Tono, VarianteBoton,
-};
+use forja_gui_dom::{documento, NivelAviso, Nodo, TipoEntrada, Tono, VarianteBoton};
 
 fn main() {
     let arbol = Nodo::Contenedor {
@@ -103,5 +101,8 @@ fn main() {
             },
         ],
     };
-    print!("{}", documento("Tareas — Forja", &arbol, Some("/publico/estilos.css")));
+    print!(
+        "{}",
+        documento("Tareas — Forja", &arbol, Some("/publico/estilos.css"))
+    );
 }
