@@ -65,6 +65,7 @@ fn arbol_completo() -> Nodo {
                         valor: String::new(),
                         marcador: "comprar pan".into(),
                         requerido: true,
+                        error: None,
                     },
                     Nodo::Seleccion {
                         nombre: "prioridad".into(),
@@ -89,13 +90,16 @@ fn arbol_completo() -> Nodo {
                 texto: "Guardar".into(),
                 accion: "guardar".into(),
                 variante: VarianteBoton::Primario,
+                deshabilitado: false,
             },
             Nodo::Boton {
                 texto: "Cancelar".into(),
                 accion: "cancelar".into(),
                 variante: VarianteBoton::Secundario,
+                deshabilitado: false,
             },
             Nodo::Tabla {
+                orden: None,
                 cabeceras: vec!["a".into()],
                 filas: vec![vec![Nodo::Texto("1".into())]],
             },

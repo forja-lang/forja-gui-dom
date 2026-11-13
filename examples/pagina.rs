@@ -44,6 +44,7 @@ fn main() {
                         valor: String::new(),
                         marcador: "comprar pan".into(),
                         requerido: true,
+                        error: None,
                     },
                     Nodo::Seleccion {
                         nombre: "prioridad".into(),
@@ -71,8 +72,10 @@ fn main() {
                 texto: "Agregar".into(),
                 accion: "agregar".into(),
                 variante: VarianteBoton::Primario,
+                deshabilitado: false,
             },
             Nodo::Tabla {
+                orden: None,
                 cabeceras: vec!["Tarea".into(), "Estado".into()],
                 filas: vec![vec![
                     Nodo::Texto("comprar pan".into()),
@@ -89,6 +92,7 @@ fn main() {
                     texto: "Borrar".into(),
                     accion: "borrar".into(),
                     variante: VarianteBoton::Primario,
+                    deshabilitado: false,
                 }],
                 abierto: false,
             },

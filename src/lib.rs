@@ -40,6 +40,14 @@ pub enum Nodo {
         texto: String,
         accion: String,
         variante: VarianteBoton,
+        deshabilitado: bool,
+    },
+    /// Botón sólo icono: el texto accesible va en `aria-label`.
+    BotonIcono {
+        icono: String,
+        etiqueta: String,
+        accion: String,
+        deshabilitado: bool,
     },
     /// Campo de texto con etiqueta accesible.
     Entrada {
@@ -48,6 +56,8 @@ pub enum Nodo {
         valor: String,
         marcador: String,
         requerido: bool,
+        /// Mensaje de validación: marca el campo inválido y lo anuncia.
+        error: Option<String>,
     },
     /// Casilla con etiqueta.
     Casilla {
@@ -57,10 +67,12 @@ pub enum Nodo {
     },
     /// Lista.
     Lista { items: Vec<Nodo>, clase: String },
-    /// Tabla con cabeceras y filas.
+    /// Tabla con cabeceras y filas. Con `orden`, las cabeceras son botones que
+    /// emiten `orden:<columna>` y llevan `aria-sort`.
     Tabla {
         cabeceras: Vec<String>,
         filas: Vec<Vec<Nodo>>,
+        orden: Option<(String, Orden)>,
     },
     /// Imagen con texto alternativo obligatorio (accesibilidad).
     Imagen { src: String, alt: String },
@@ -126,6 +138,13 @@ pub enum Nodo {
         hijos: Vec<Nodo>,
         abierto: bool,
     },
+}
+
+/// Sentido del orden de una tabla.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Orden {
+    Ascendente,
+    Descendente,
 }
 
 /// Tono visual de una insignia (el color lo pone el CSS).
@@ -268,6 +287,7 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
             texto,
             accion,
             variante,
+            deshabilitado,
         } => {
             let clase = match variante {
                 VarianteBoton::Primario => "fg-boton",
@@ -275,10 +295,26 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
             };
             let _ = write!(
                 salida,
-                "<button type=\"button\" class=\"{}\" data-fg-accion=\"{}\">{}</button>",
+                "<button type=\"button\" class=\"{}\" data-fg-accion=\"{}\"{}>{}</button>",
                 clase,
                 escapar(accion),
+                if *deshabilitado { " disabled" } else { "" },
                 escapar(texto)
+            );
+        }
+        Nodo::BotonIcono {
+            icono,
+            etiqueta,
+            accion,
+            deshabilitado,
+        } => {
+            let _ = write!(
+                salida,
+                "<button type=\"button\" class=\"fg-boton fg-boton-icono\" aria-label=\"{}\" data-fg-accion=\"{}\"{}>{}</button>",
+                escapar(etiqueta),
+                escapar(accion),
+                if *deshabilitado { " disabled" } else { "" },
+                escapar(icono)
             );
         }
         Nodo::Entrada {
@@ -287,22 +323,35 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
             valor,
             marcador,
             requerido,
+            error,
         } => {
             let id = format!("fg-{nombre}");
             let requerido = if *requerido { " required" } else { "" };
             let valor = estado.and_then(|e| e.obtener(nombre)).unwrap_or(valor);
+            let (invalidos, descrito, mensaje) = match error {
+                Some(texto) => (
+                    " aria-invalid=\"true\"",
+                    format!(" aria-describedby=\"fg-{nombre}-error\""),
+                    format!(
+                        "<p class=\"fg-error\" id=\"fg-{nombre}-error\" role=\"alert\">{}</p>",
+                        escapar(texto)
+                    ),
+                ),
+                None => ("", String::new(), String::new()),
+            };
             let _ = write!(
                 salida,
-                "<label for=\"{id}\">{}</label>\
-                 <input id=\"{id}\" name=\"{}\" data-fg-variable=\"{}\" type=\"{}\" value=\"{}\" placeholder=\"{}\"{requerido}>",
+                "<label for=\"{id}\">{}</label><input id=\"{id}\" name=\"{}\" data-fg-variable=\"{}\" type=\"{}\" value=\"{}\" placeholder=\"{}\"{requerido}{invalidos}{descrito}>{}",
                 escapar(nombre),
                 escapar(nombre),
                 escapar(nombre),
                 tipo.html(),
                 escapar(valor),
-                escapar(marcador)
+                escapar(marcador),
+                mensaje
             );
         }
+
         Nodo::Casilla {
             nombre,
             etiqueta,
@@ -332,12 +381,33 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
             }
             salida.push_str("</ul>");
         }
-        Nodo::Tabla { cabeceras, filas } => {
+        Nodo::Tabla {
+            cabeceras,
+            filas,
+            orden,
+        } => {
             salida.push_str("<table>");
             if !cabeceras.is_empty() {
                 salida.push_str("<thead><tr>");
                 for cabecera in cabeceras {
-                    let _ = write!(salida, "<th>{}</th>", escapar(cabecera));
+                    if orden.is_some() {
+                        // Cabecera ordenable: `aria-sort` + acción `orden:<columna>`.
+                        let sentido = match orden {
+                            Some((columna, sentido)) if columna == cabecera => match sentido {
+                                Orden::Ascendente => "ascending",
+                                Orden::Descendente => "descending",
+                            },
+                            _ => "none",
+                        };
+                        let _ = write!(
+                            salida,
+                            "<th aria-sort=\"{sentido}\"><button type=\"button\" class=\"fg-ordenar\" data-fg-accion=\"orden:{}\">{}</button></th>",
+                            escapar(cabecera),
+                            escapar(cabecera)
+                        );
+                    } else {
+                        let _ = write!(salida, "<th>{}</th>", escapar(cabecera));
+                    }
                 }
                 salida.push_str("</tr></thead>");
             }
@@ -503,7 +573,11 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
                         .map(|(valor, _, _)| valor.clone())
                         .unwrap_or_default()
                 });
-            let _ = write!(salida, "<div class=\"fg-pestanas\" role=\"tablist\">");
+            let _ = write!(
+                salida,
+                "<div class=\"fg-pestanas\" role=\"tablist\" data-fg-tablist=\"{}\">",
+                escapar(variable)
+            );
             for (valor, etiqueta, _) in items {
                 let seleccionada = valor == &activa;
                 let _ = write!(
@@ -520,7 +594,9 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
                 let visible = valor == &activa;
                 let _ = write!(
                     salida,
-                    "<div class=\"fg-panel\" role=\"tabpanel\" aria-label=\"{}\"{}>",
+                    "<div class=\"fg-panel\" role=\"tabpanel\" data-fg-panel=\"{}\" data-fg-panel-var=\"{}\" aria-label=\"{}\"{}>",
+                    escapar(valor),
+                    escapar(variable),
                     escapar(etiqueta),
                     if visible { "" } else { " hidden" }
                 );
@@ -542,7 +618,7 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
                 .unwrap_or_else(|| por_defecto.clone());
             let _ = write!(
                 salida,
-                "<span id=\"fg-{}-etiqueta\" class=\"fg-etiqueta-grupo\">{}</span>                 <ul class=\"fg-opciones\" role=\"listbox\" aria-labelledby=\"fg-{}-etiqueta\" data-fg-variable=\"{}\">",
+                "<span id=\"fg-{}-etiqueta\" class=\"fg-etiqueta-grupo\">{}</span>                 <ul class=\"fg-opciones\" role=\"listbox\" aria-labelledby=\"fg-{}-etiqueta\" data-fg-listbox=\"{}\">",
                 escapar(variable),
                 escapar(etiqueta),
                 escapar(variable),
@@ -645,6 +721,7 @@ mod tests {
             texto: "Guardar".into(),
             accion: "guardar".into(),
             variante: VarianteBoton::Primario,
+            deshabilitado: false,
         });
         assert_eq!(
             html,
@@ -660,6 +737,7 @@ mod tests {
             valor: "a@b".into(),
             marcador: "tu@correo".into(),
             requerido: true,
+        error: None,
         });
         assert!(html.contains("<label for=\"fg-email\">email</label>"));
         assert!(html
@@ -676,6 +754,7 @@ mod tests {
             valor: "\"<a>\"".into(),
             marcador: "\"b\"".into(),
             requerido: false,
+        error: None,
         });
         assert!(html.contains("&quot;&lt;a&gt;&quot;"));
         assert!(html.contains("&quot;b&quot;"));
@@ -704,6 +783,7 @@ mod tests {
         let tabla = render(&Nodo::Tabla {
             cabeceras: vec!["a".into()],
             filas: vec![vec![Nodo::Texto("1".into())]],
+            orden: None,
         });
         assert_eq!(
             tabla,
@@ -781,6 +861,7 @@ mod tests {
                     valor: "por defecto".into(),
                     marcador: String::new(),
                     requerido: false,
+                error: None,
                 },
             ],
             clase: String::new(),
@@ -807,12 +888,14 @@ mod tests {
                     texto: "Guardar".into(),
                     accion: "guardar".into(),
                     variante: VarianteBoton::Primario,
+                    deshabilitado: false,
                 },
                 Nodo::Lista {
                     items: vec![Nodo::Boton {
                         texto: "Borrar".into(),
                         accion: "borrar:7".into(),
                         variante: VarianteBoton::Secundario,
+                        deshabilitado: false,
                     }],
                     clase: String::new(),
                 },
@@ -824,7 +907,9 @@ mod tests {
                         valor: String::new(),
                         marcador: String::new(),
                         requerido: false,
+                    error: None,
                     }]],
+                    orden: None,
                 },
                 Nodo::Entrada {
                     nombre: "filtro".into(),
@@ -832,6 +917,7 @@ mod tests {
                     valor: String::new(),
                     marcador: String::new(),
                     requerido: false,
+                error: None,
                 },
             ],
             clase: String::new(),
@@ -956,6 +1042,7 @@ mod tests {
                 texto: "Sí".into(),
                 accion: "confirmar".into(),
                 variante: VarianteBoton::Primario,
+                deshabilitado: false,
             }],
             abierto: true,
         });
@@ -995,6 +1082,7 @@ mod tests {
                         texto: "Ir".into(),
                         accion: "ir".into(),
                         variante: VarianteBoton::Primario,
+                        deshabilitado: false,
                     },
                 ],
             }],
@@ -1026,8 +1114,10 @@ mod tests {
         assert!(html.contains("role=\"tablist\""));
         assert!(html.contains("aria-selected=\"true\" data-fg-accion=\"tab:pestana:lista\""));
         assert!(html.contains("aria-selected=\"false\" data-fg-accion=\"tab:pestana:detalle\""));
-        assert!(html.contains("<div class=\"fg-panel\" role=\"tabpanel\" aria-label=\"Lista\">"));
-        assert!(html.contains("aria-label=\"Detalle\" hidden>"));
+        assert!(html.contains(
+            "<div class=\"fg-panel\" role=\"tabpanel\" data-fg-panel=\"lista\" data-fg-panel-var=\"pestana\" aria-label=\"Lista\">"
+        ));
+        assert!(html.contains("data-fg-panel=\"detalle\" data-fg-panel-var=\"pestana\" aria-label=\"Detalle\" hidden>"));
 
         // Con estado: cambia la activa y el panel oculto.
         let mut estado = Estado::nuevo();
@@ -1036,8 +1126,8 @@ mod tests {
         assert!(
             con_estado.contains("aria-selected=\"true\" data-fg-accion=\"tab:pestana:detalle\"")
         );
-        assert!(con_estado.contains("aria-label=\"Lista\" hidden>"));
-        assert!(con_estado.contains("aria-label=\"Detalle\">"));
+        assert!(con_estado.contains("data-fg-panel=\"lista\" data-fg-panel-var=\"pestana\" aria-label=\"Lista\" hidden>"));
+        assert!(con_estado.contains("data-fg-panel=\"detalle\" data-fg-panel-var=\"pestana\" aria-label=\"Detalle\">"));
 
         // La variable de las pestañas es un binding.
         assert_eq!(variables(&nodo), vec!["pestana"]);
@@ -1093,7 +1183,7 @@ mod tests {
         let html = render(&nodo);
         assert!(html.contains("role=\"listbox\""));
         assert!(html.contains("aria-labelledby=\"fg-vista-etiqueta\""));
-        assert!(html.contains("data-fg-variable=\"vista\""));
+        assert!(html.contains("data-fg-listbox=\"vista\""));
         // Sin estado, se marca `por_defecto`.
         assert!(html.contains("aria-selected=\"true\" data-fg-accion=\"sel:vista:hoy\""));
         assert!(html.contains("aria-selected=\"false\" data-fg-accion=\"sel:vista:semana\""));
@@ -1106,6 +1196,84 @@ mod tests {
         assert_eq!(variables(&nodo), vec!["vista"]);
     }
 
+
+    #[test]
+    fn boton_deshabilitado_y_boton_icono() {
+        let deshabilitado = render(&Nodo::Boton {
+            texto: "Eliminar".into(),
+            accion: "eliminar".into(),
+            variante: VarianteBoton::Secundario,
+            deshabilitado: true,
+        });
+        assert!(deshabilitado.contains(" disabled>Eliminar</button>"));
+
+        let icono = render(&Nodo::BotonIcono {
+            icono: "★".into(),
+            etiqueta: "Marcar favorito".into(),
+            accion: "favorito".into(),
+            deshabilitado: false,
+        });
+        assert!(icono.contains("aria-label=\"Marcar favorito\""));
+        assert!(icono.contains("class=\"fg-boton fg-boton-icono\""));
+        assert!(icono.contains("data-fg-accion=\"favorito\""));
+        assert!(icono.ends_with(">★</button>"));
+        assert!(!icono.contains(" disabled"));
+    }
+
+    #[test]
+    fn campo_con_error_lo_anuncia() {
+        let nodo = Nodo::Entrada {
+            nombre: "email".into(),
+            tipo: TipoEntrada::Email,
+            valor: "no-es-correo".into(),
+            marcador: String::new(),
+            requerido: true,
+            error: Some("Formato inválido <y peligroso>".into()),
+        };
+        let html = render(&nodo);
+        assert!(html.contains("aria-invalid=\"true\""));
+        assert!(html.contains("aria-describedby=\"fg-email-error\""));
+        assert!(html.contains(
+            "<p class=\"fg-error\" id=\"fg-email-error\" role=\"alert\">Formato inválido &lt;y peligroso&gt;</p>"
+        ));
+
+        // Sin error no se agrega nada.
+        let limpio = render(&Nodo::Entrada {
+            nombre: "email".into(),
+            tipo: TipoEntrada::Email,
+            valor: String::new(),
+            marcador: String::new(),
+            requerido: false,
+            error: None,
+        });
+        assert!(!limpio.contains("aria-invalid"));
+        assert!(!limpio.contains("fg-error"));
+    }
+
+    #[test]
+    fn tabla_ordenable_con_aria_sort() {
+        let nodo = Nodo::Tabla {
+            cabeceras: vec!["Tarea".into(), "Estado".into()],
+            filas: vec![vec![Nodo::Texto("a".into()), Nodo::Texto("b".into())]],
+            orden: Some(("Tarea".into(), Orden::Descendente)),
+        };
+        let html = render(&nodo);
+        assert!(html.contains("<th aria-sort=\"descending\">"));
+        assert!(html.contains("data-fg-accion=\"orden:Tarea\""));
+        // La otra cabecera está sin ordenar.
+        assert!(html.contains("<th aria-sort=\"none\">"));
+        assert!(html.contains("data-fg-accion=\"orden:Estado\""));
+
+        // Sin `orden` la tabla no es interactiva.
+        let simple = render(&Nodo::Tabla {
+            cabeceras: vec!["a".into()],
+            filas: vec![],
+            orden: None,
+        });
+        assert!(simple.contains("<th>a</th>"));
+        assert!(!simple.contains("aria-sort"));
+    }
+
     #[test]
     fn arbol_anidado() {
         let arbol = Nodo::Lista {
@@ -1116,6 +1284,7 @@ mod tests {
                         texto: "hecha".into(),
                         accion: "hecha:1".into(),
                         variante: VarianteBoton::Secundario,
+                        deshabilitado: false,
                     },
                 ],
                 clase: String::new(),
