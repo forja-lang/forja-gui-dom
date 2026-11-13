@@ -129,6 +129,18 @@ funcion reiniciar() {
     // callback del lenguaje (siguiente paso). Se muestra acá para que se vea.
     // Modo automático (para el test headless): simula dos clics y marca que
     // terminó, así se puede verificar que el callback del lenguaje corrió.
+    // Diagnóstico aislado de la navegación por teclado en pestañas.
+    if (new URLSearchParams(location.search).get("kbd") === "1") {
+      setTimeout(() => {
+        const activa = app.querySelector('[role="tab"][aria-selected="true"]');
+        activa.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+        setTimeout(() => {
+          const nueva = app.querySelector('[role="tab"][aria-selected="true"]');
+          document.getElementById("estado").textContent = "activa:" + (nueva ? nueva.dataset.fgAccion : "ninguna");
+        }, 250);
+      }, 400);
+    }
+
     if (new URLSearchParams(location.search).get("auto") === "1") {
       // Un clic, espera el re-render (el botón se recrea) y otro clic.
       setTimeout(() => {
