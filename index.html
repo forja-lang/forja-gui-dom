@@ -40,23 +40,49 @@
 
     const CODIGO = `
 variable tareas = 0
+variable pestana = "lista"
+variable titulo = ""
 
 funcion main() {
     columna(
         fila(
             titulo("Tareas"),
-            boton("Sumar una", crear_tarea)
+            boton("Sumar una", crear_tarea),
+            boton("Confirmar reinicio", "abrir:confirmar")
         ),
         fila(
             etiqueta("Pendientes:"),
             etiqueta_dinamica("tareas")
         ),
-        fila(
-            entrada_texto("titulo", "comprar pan"),
-            boton("Agregar", crear_tarea)
+        pestanas("pestana",
+            pestana("lista", "Lista",
+                fila(
+                    entrada_texto("titulo", "comprar pan"),
+                    boton("Agregar", crear_tarea)
+                )
+            ),
+            pestana("detalle", "Detalle",
+                columna(
+                    etiqueta("Lo que escribas en la otra pestaña aparece acá:"),
+                    etiqueta_dinamica("titulo")
+                )
+            ),
+            pestana("opciones", "Opciones",
+                columna(
+                    etiqueta("Contador y reinicio."),
+                    boton("Reiniciar contador", reiniciar)
+                )
+            )
         ),
-        etiqueta_dinamica("titulo"),
-        boton("Reiniciar", reiniciar),
+        plegable("¿Cómo funciona?", verdadero,
+            etiqueta("El árbol lo arma Forja y se pinta como DOM real.")
+        ),
+        dialogo("confirmar", "¿Reiniciar el contador?", falso,
+            fila(
+                boton("Sí, reiniciar", reiniciar),
+                boton("Cancelar", "cerrar:confirmar")
+            )
+        ),
         espacio(12),
         etiqueta("Hecho con Forja — sin frameworks de frontend")
     )
@@ -99,6 +125,12 @@ funcion reiniciar() {
         app.querySelector('[data-fg-accion="crear_tarea"]').click();
         setTimeout(() => {
           app.querySelector('[data-fg-accion="crear_tarea"]').click();
+          // Pestañas: cambia la activa (convención tab:<var>:<valor>).
+          app.querySelector('[data-fg-accion="tab:pestana:detalle"]').click();
+          setTimeout(() => {
+            // Diálogo nativo: la acción "abrir:confirmar" lo abre.
+            app.querySelector('[data-fg-accion="abrir:confirmar"]').click();
+          }, 200);
           // Binding de ida: escribir en el campo actualiza la variable del programa.
           const entrada = app.querySelector('input[data-fg-variable="titulo"]');
           entrada.value = "pan integral";
