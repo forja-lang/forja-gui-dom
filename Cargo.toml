@@ -1,0 +1,13 @@
+[package]
+name = "forja-gui-dom"
+version = "0.10.3"
+edition = "2021"
+description = "Forja GUI DOM — modelo de nodos y serializador HTML (sin canvas)"
+authors = ["forja-lang"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/forja-lang/forja"
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
