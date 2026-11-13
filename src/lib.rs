@@ -49,6 +49,13 @@ pub enum Nodo {
         accion: String,
         deshabilitado: bool,
     },
+    /// Formulario real (`<form>`): Enter envía y, sin JS, hace un POST normal.
+    /// `accion` vacía deja el formulario en manos del runtime.
+    Formulario {
+        accion: String,
+        metodo: String,
+        hijos: Vec<Nodo>,
+    },
     /// Campo de texto con etiqueta accesible.
     Entrada {
         nombre: String,
@@ -316,6 +323,27 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
                 if *deshabilitado { " disabled" } else { "" },
                 escapar(icono)
             );
+        }
+        Nodo::Formulario {
+            accion,
+            metodo,
+            hijos,
+        } => {
+            let metodo_form = if metodo.is_empty() { "post" } else { metodo };
+            let atributo_accion = if accion.is_empty() {
+                String::new()
+            } else {
+                format!(" action=\"{}\"", escapar(accion))
+            };
+            let _ = write!(
+                salida,
+                "<form class=\"fg-formulario\" method=\"{}\"{atributo_accion} data-fg-formulario=\"1\">",
+                escapar(metodo_form)
+            );
+            for hijo in hijos {
+                escribir(hijo, salida, estado);
+            }
+            salida.push_str("</form>");
         }
         Nodo::Entrada {
             nombre,
@@ -737,7 +765,7 @@ mod tests {
             valor: "a@b".into(),
             marcador: "tu@correo".into(),
             requerido: true,
-        error: None,
+            error: None,
         });
         assert!(html.contains("<label for=\"fg-email\">email</label>"));
         assert!(html
@@ -754,7 +782,7 @@ mod tests {
             valor: "\"<a>\"".into(),
             marcador: "\"b\"".into(),
             requerido: false,
-        error: None,
+            error: None,
         });
         assert!(html.contains("&quot;&lt;a&gt;&quot;"));
         assert!(html.contains("&quot;b&quot;"));
@@ -861,7 +889,7 @@ mod tests {
                     valor: "por defecto".into(),
                     marcador: String::new(),
                     requerido: false,
-                error: None,
+                    error: None,
                 },
             ],
             clase: String::new(),
@@ -907,7 +935,7 @@ mod tests {
                         valor: String::new(),
                         marcador: String::new(),
                         requerido: false,
-                    error: None,
+                        error: None,
                     }]],
                     orden: None,
                 },
@@ -917,7 +945,7 @@ mod tests {
                     valor: String::new(),
                     marcador: String::new(),
                     requerido: false,
-                error: None,
+                    error: None,
                 },
             ],
             clase: String::new(),
@@ -1126,8 +1154,12 @@ mod tests {
         assert!(
             con_estado.contains("aria-selected=\"true\" data-fg-accion=\"tab:pestana:detalle\"")
         );
-        assert!(con_estado.contains("data-fg-panel=\"lista\" data-fg-panel-var=\"pestana\" aria-label=\"Lista\" hidden>"));
-        assert!(con_estado.contains("data-fg-panel=\"detalle\" data-fg-panel-var=\"pestana\" aria-label=\"Detalle\">"));
+        assert!(con_estado.contains(
+            "data-fg-panel=\"lista\" data-fg-panel-var=\"pestana\" aria-label=\"Lista\" hidden>"
+        ));
+        assert!(con_estado.contains(
+            "data-fg-panel=\"detalle\" data-fg-panel-var=\"pestana\" aria-label=\"Detalle\">"
+        ));
 
         // La variable de las pestañas es un binding.
         assert_eq!(variables(&nodo), vec!["pestana"]);
@@ -1168,7 +1200,6 @@ mod tests {
         .contains(" open"));
     }
 
-
     #[test]
     fn lista_de_seleccion_aria() {
         let nodo = Nodo::ListaSeleccion {
@@ -1195,7 +1226,6 @@ mod tests {
 
         assert_eq!(variables(&nodo), vec!["vista"]);
     }
-
 
     #[test]
     fn boton_deshabilitado_y_boton_icono() {
@@ -1272,6 +1302,38 @@ mod tests {
         });
         assert!(simple.contains("<th>a</th>"));
         assert!(!simple.contains("aria-sort"));
+    }
+
+
+    #[test]
+    fn formulario_real_con_enter_y_post_sin_js() {
+        let nodo = Nodo::Formulario {
+            accion: "/tareas".into(),
+            metodo: "post".into(),
+            hijos: vec![Nodo::Entrada {
+                nombre: "titulo".into(),
+                tipo: TipoEntrada::Texto,
+                valor: String::new(),
+                marcador: String::new(),
+                requerido: true,
+                error: None,
+            }],
+        };
+        let html = render(&nodo);
+        assert!(html.starts_with(
+            "<form class=\"fg-formulario\" method=\"post\" action=\"/tareas\" data-fg-formulario=\"1\">"
+        ));
+        assert!(html.contains("name=\"titulo\""));
+        assert!(html.ends_with("</form>"));
+
+        // Sin acción: el runtime decide (no se pone `action`).
+        let sin_accion = render(&Nodo::Formulario {
+            accion: String::new(),
+            metodo: String::new(),
+            hijos: vec![],
+        });
+        assert!(!sin_accion.contains("action="));
+        assert!(sin_accion.contains("method=\"post\""));
     }
 
     #[test]
@@ -1388,7 +1450,8 @@ fn recolectar_acciones(nodo: &Nodo, salida: &mut Vec<String>) {
         | Nodo::GrupoCampos { hijos, .. }
         | Nodo::Tarjeta { hijos, .. }
         | Nodo::Dialogo { hijos, .. }
-        | Nodo::Plegable { hijos, .. } => {
+        | Nodo::Plegable { hijos, .. }
+        | Nodo::Formulario { hijos, .. } => {
             for hijo in hijos {
                 recolectar_acciones(hijo, salida);
             }
@@ -1441,7 +1504,8 @@ fn recolectar_variables(nodo: &Nodo, salida: &mut Vec<String>) {
         | Nodo::GrupoCampos { hijos, .. }
         | Nodo::Tarjeta { hijos, .. }
         | Nodo::Dialogo { hijos, .. }
-        | Nodo::Plegable { hijos, .. } => {
+        | Nodo::Plegable { hijos, .. }
+        | Nodo::Formulario { hijos, .. } => {
             for hijo in hijos {
                 recolectar_variables(hijo, salida);
             }

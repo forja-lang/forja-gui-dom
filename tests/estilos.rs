@@ -125,6 +125,16 @@ fn arbol_completo() -> Nodo {
             Nodo::Cargando {
                 texto: "cargando".into(),
             },
+            Nodo::Formulario {
+                accion: "/tareas".into(),
+                metodo: "post".into(),
+                hijos: vec![Nodo::Boton {
+                    texto: "Agregar".into(),
+                    accion: "agregar".into(),
+                    variante: VarianteBoton::Primario,
+                    deshabilitado: false,
+                }],
+            },
             Nodo::Pestanas {
                 variable: "pestana".into(),
                 items: vec![(
