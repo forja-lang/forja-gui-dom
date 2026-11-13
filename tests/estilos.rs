@@ -143,6 +143,12 @@ fn arbol_completo() -> Nodo {
                     vec![Nodo::Parrafo("panel".into())],
                 )],
             },
+            Nodo::ListaPaginada {
+                variable: "pagina".into(),
+                por_pagina: 2,
+                items: vec![Nodo::Texto("a".into()), Nodo::Texto("b".into())],
+                clase: String::new(),
+            },
             Nodo::ListaSeleccion {
                 variable: "vista".into(),
                 etiqueta: "Vista".into(),

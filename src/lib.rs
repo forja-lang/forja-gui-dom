@@ -74,6 +74,14 @@ pub enum Nodo {
     },
     /// Lista.
     Lista { items: Vec<Nodo>, clase: String },
+    /// Lista paginada: sólo existen en el DOM los ítems de la página actual.
+    /// `variable` guarda la página; los botones emiten `pag:<variable>:-1|1`.
+    ListaPaginada {
+        variable: String,
+        por_pagina: usize,
+        items: Vec<Nodo>,
+        clase: String,
+    },
     /// Tabla con cabeceras y filas. Con `orden`, las cabeceras son botones que
     /// emiten `orden:<columna>` y llevan `aria-sort`.
     Tabla {
@@ -394,6 +402,51 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
                 escapar(nombre),
                 escapar(nombre),
                 escapar(etiqueta)
+            );
+        }
+        Nodo::ListaPaginada {
+            variable,
+            por_pagina,
+            items,
+            clase,
+        } => {
+            let por_pagina = (*por_pagina).max(1);
+            let total_paginas = items.len().div_ceil(por_pagina).max(1);
+            let pagina = estado
+                .and_then(|e| e.obtener(variable))
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(1)
+                .clamp(1, total_paginas);
+            let desde = (pagina - 1) * por_pagina;
+            let hasta = (desde + por_pagina).min(items.len());
+
+            let clase_ul = if clase.is_empty() {
+                "fg-paginada".to_string()
+            } else {
+                format!("fg-paginada {clase}")
+            };
+            let _ = write!(
+                salida,
+                "<div class=\"fg-paginador\" data-fg-lista-pag=\"{}\"><ul class=\"{}\">",
+                escapar(variable),
+                escapar(&clase_ul)
+            );
+            for item in &items[desde..hasta] {
+                salida.push_str("<li>");
+                escribir(item, salida, estado);
+                salida.push_str("</li>");
+            }
+            let _ = write!(
+                salida,
+                "</ul><nav class=\"fg-paginador-controles\" aria-label=\"Paginación\">                 <button type=\"button\" class=\"fg-boton fg-boton-secundario\" data-fg-accion=\"pag:{}:-1\"{}>‹ Anterior</button>                 <span class=\"fg-paginador-estado\" data-fg-paginas=\"{}\" data-fg-pagina-actual=\"{}\">Página {} de {}</span>                 <button type=\"button\" class=\"fg-boton fg-boton-secundario\" data-fg-accion=\"pag:{}:1\"{}>Siguiente ›</button>                 </nav></div>",
+                escapar(variable),
+                if pagina <= 1 { " disabled" } else { "" },
+                total_paginas,
+                pagina,
+                pagina,
+                total_paginas,
+                escapar(variable),
+                if pagina >= total_paginas { " disabled" } else { "" }
             );
         }
         Nodo::Lista { items, clase } => {
@@ -1335,6 +1388,49 @@ mod tests {
         assert!(sin_accion.contains("method=\"post\""));
     }
 
+
+    #[test]
+    fn lista_paginada_solo_crea_la_pagina_actual() {
+        let items: Vec<Nodo> = (1..=7)
+            .map(|n| Nodo::Texto(format!("fila {n}")))
+            .collect();
+        let nodo = Nodo::ListaPaginada {
+            variable: "pagina".into(),
+            por_pagina: 3,
+            items,
+            clase: String::new(),
+        };
+
+        let primera = render(&nodo);
+        // Sólo 3 <li> en el DOM aunque haya 7 ítems.
+        assert_eq!(primera.matches("<li>").count(), 3);
+        assert!(primera.contains("fila 1") && primera.contains("fila 3"));
+        assert!(!primera.contains("fila 4"));
+        assert!(primera.contains("Página 1 de 3"));
+        assert!(primera.contains("data-fg-accion=\"pag:pagina:-1\" disabled"));
+        assert!(primera.contains("data-fg-accion=\"pag:pagina:1\">Siguiente"));
+
+        let mut estado = Estado::nuevo();
+        estado.fijar("pagina", "2");
+        let segunda = render_con_estado(&nodo, &estado);
+        assert_eq!(segunda.matches("<li>").count(), 3);
+        assert!(segunda.contains("fila 4") && !segunda.contains("fila 1<"));
+        assert!(segunda.contains("Página 2 de 3"));
+
+        // Última página: sin botón siguiente, con los ítems que quedan.
+        estado.fijar("pagina", "3");
+        let tercera = render_con_estado(&nodo, &estado);
+        assert_eq!(tercera.matches("<li>").count(), 1);
+        assert!(tercera.contains("fila 7"));
+        assert!(tercera.contains("pag:pagina:1\" disabled"));
+
+        // Una página fuera de rango se recorta.
+        estado.fijar("pagina", "99");
+        assert!(render_con_estado(&nodo, &estado).contains("Página 3 de 3"));
+
+        assert_eq!(variables(&nodo), vec!["pagina"]);
+    }
+
     #[test]
     fn arbol_anidado() {
         let arbol = Nodo::Lista {
@@ -1507,6 +1603,11 @@ fn recolectar_variables(nodo: &Nodo, salida: &mut Vec<String>) {
         | Nodo::Formulario { hijos, .. } => {
             for hijo in hijos {
                 recolectar_variables(hijo, salida);
+            }
+        }
+        Nodo::ListaPaginada { variable, .. } => {
+            if !salida.contains(variable) {
+                salida.push(variable.clone());
             }
         }
         Nodo::ListaSeleccion { variable, .. } => {

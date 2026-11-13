@@ -278,3 +278,11 @@ img { max-width: 100%; height: auto; }
 /* Formulario (Enter envía; sin JS hace POST normal) */
 .fg-formulario { display: flex; flex-direction: column; gap: .5rem; margin: .6rem 0; }
 .fg-formulario > .fg-fila { align-items: flex-end; }
+
+/* ─── Lista paginada ──────────────────────────────────────────────── */
+
+.fg-paginador { margin: .6rem 0; }
+.fg-paginada { list-style: none; padding: 0; margin: 0 0 .5rem; }
+.fg-paginada > li { padding: .4rem .2rem; border-bottom: 1px solid var(--fg-borde); }
+.fg-paginador-controles { display: flex; align-items: center; gap: .6rem; }
+.fg-paginador-estado { font-size: .9rem; color: #555; }
