@@ -111,6 +111,15 @@ pub enum Nodo {
         variable: String,
         items: Vec<(String, String, Vec<Nodo>)>,
     },
+    /// Lista de opciones con selección única (ARIA `listbox`). La elegida sale
+    /// de la variable ligada; cada opción dispara `sel:<variable>:<valor>`.
+    ListaSeleccion {
+        variable: String,
+        etiqueta: String,
+        /// Valor marcado si el programa todavía no tiene la variable.
+        por_defecto: String,
+        opciones: Vec<(String, String)>,
+    },
     /// Bloque plegable nativo (`<details>`/`<summary>`): foco y teclado gratis.
     Plegable {
         titulo: String,
@@ -488,7 +497,12 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
             let activa = estado
                 .and_then(|e| e.obtener(variable))
                 .map(|v| v.to_string())
-                .unwrap_or_else(|| items.first().map(|(valor, _, _)| valor.clone()).unwrap_or_default());
+                .unwrap_or_else(|| {
+                    items
+                        .first()
+                        .map(|(valor, _, _)| valor.clone())
+                        .unwrap_or_default()
+                });
             let _ = write!(salida, "<div class=\"fg-pestanas\" role=\"tablist\">");
             for (valor, etiqueta, _) in items {
                 let seleccionada = valor == &activa;
@@ -515,6 +529,37 @@ fn escribir(nodo: &Nodo, salida: &mut String, estado: Option<&Estado>) {
                 }
                 salida.push_str("</div>");
             }
+        }
+        Nodo::ListaSeleccion {
+            variable,
+            etiqueta,
+            por_defecto,
+            opciones,
+        } => {
+            let elegida = estado
+                .and_then(|e| e.obtener(variable))
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| por_defecto.clone());
+            let _ = write!(
+                salida,
+                "<span id=\"fg-{}-etiqueta\" class=\"fg-etiqueta-grupo\">{}</span>                 <ul class=\"fg-opciones\" role=\"listbox\" aria-labelledby=\"fg-{}-etiqueta\" data-fg-variable=\"{}\">",
+                escapar(variable),
+                escapar(etiqueta),
+                escapar(variable),
+                escapar(variable)
+            );
+            for (valor, texto) in opciones {
+                let seleccionada = valor == &elegida;
+                let _ = write!(
+                    salida,
+                    "<li><button type=\"button\" role=\"option\" class=\"fg-opcion\" aria-selected=\"{}\" data-fg-accion=\"sel:{}:{}\">{}</button></li>",
+                    if seleccionada { "true" } else { "false" },
+                    escapar(variable),
+                    escapar(valor),
+                    escapar(texto)
+                );
+            }
+            salida.push_str("</ul>");
         }
         Nodo::Plegable {
             titulo,
@@ -958,7 +1003,6 @@ mod tests {
         assert_eq!(variables(&arbol), vec!["sel"]);
     }
 
-
     #[test]
     fn pestanas_aria_y_panel_activo() {
         let nodo = Nodo::Pestanas {
@@ -989,12 +1033,31 @@ mod tests {
         let mut estado = Estado::nuevo();
         estado.fijar("pestana", "detalle");
         let con_estado = render_con_estado(&nodo, &estado);
-        assert!(con_estado.contains("aria-selected=\"true\" data-fg-accion=\"tab:pestana:detalle\""));
+        assert!(
+            con_estado.contains("aria-selected=\"true\" data-fg-accion=\"tab:pestana:detalle\"")
+        );
         assert!(con_estado.contains("aria-label=\"Lista\" hidden>"));
         assert!(con_estado.contains("aria-label=\"Detalle\">"));
 
         // La variable de las pestañas es un binding.
         assert_eq!(variables(&nodo), vec!["pestana"]);
+
+        // Y las de adentro también (regresión: la lista de selección dentro
+        // de una pestaña no se sembraba y quedaba sin opción marcada).
+        let con_lista = Nodo::Pestanas {
+            variable: "pestana".into(),
+            items: vec![(
+                "uno".into(),
+                "Uno".into(),
+                vec![Nodo::ListaSeleccion {
+                    variable: "vista".into(),
+                    etiqueta: "Vista".into(),
+                    por_defecto: "hoy".into(),
+                    opciones: vec![("hoy".into(), "Hoy".into())],
+                }],
+            )],
+        };
+        assert_eq!(variables(&con_lista), vec!["pestana", "vista"]);
     }
 
     #[test]
@@ -1013,6 +1076,34 @@ mod tests {
             abierto: false
         })
         .contains(" open"));
+    }
+
+
+    #[test]
+    fn lista_de_seleccion_aria() {
+        let nodo = Nodo::ListaSeleccion {
+            variable: "vista".into(),
+            etiqueta: "Vista".into(),
+            por_defecto: "hoy".into(),
+            opciones: vec![
+                ("hoy".into(), "Hoy".into()),
+                ("semana".into(), "Semana".into()),
+            ],
+        };
+        let html = render(&nodo);
+        assert!(html.contains("role=\"listbox\""));
+        assert!(html.contains("aria-labelledby=\"fg-vista-etiqueta\""));
+        assert!(html.contains("data-fg-variable=\"vista\""));
+        // Sin estado, se marca `por_defecto`.
+        assert!(html.contains("aria-selected=\"true\" data-fg-accion=\"sel:vista:hoy\""));
+        assert!(html.contains("aria-selected=\"false\" data-fg-accion=\"sel:vista:semana\""));
+
+        let mut estado = Estado::nuevo();
+        estado.fijar("vista", "semana");
+        let con_estado = render_con_estado(&nodo, &estado);
+        assert!(con_estado.contains("aria-selected=\"true\" data-fg-accion=\"sel:vista:semana\""));
+
+        assert_eq!(variables(&nodo), vec!["vista"]);
     }
 
     #[test]
@@ -1184,6 +1275,11 @@ fn recolectar_variables(nodo: &Nodo, salida: &mut Vec<String>) {
         | Nodo::Plegable { hijos, .. } => {
             for hijo in hijos {
                 recolectar_variables(hijo, salida);
+            }
+        }
+        Nodo::ListaSeleccion { variable, .. } => {
+            if !salida.contains(variable) {
+                salida.push(variable.clone());
             }
         }
         Nodo::Pestanas { variable, items } => {

@@ -121,6 +121,25 @@ fn arbol_completo() -> Nodo {
             Nodo::Cargando {
                 texto: "cargando".into(),
             },
+            Nodo::Pestanas {
+                variable: "pestana".into(),
+                items: vec![(
+                    "uno".into(),
+                    "Uno".into(),
+                    vec![Nodo::Parrafo("panel".into())],
+                )],
+            },
+            Nodo::ListaSeleccion {
+                variable: "vista".into(),
+                etiqueta: "Vista".into(),
+                por_defecto: "hoy".into(),
+                opciones: vec![("hoy".into(), "Hoy".into())],
+            },
+            Nodo::Plegable {
+                titulo: "Más".into(),
+                hijos: vec![Nodo::Texto("dentro".into())],
+                abierto: false,
+            },
             Nodo::Separador,
             Nodo::Contenedor {
                 clase: "fg-fila".into(),
