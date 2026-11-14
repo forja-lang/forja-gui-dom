@@ -1388,12 +1388,9 @@ mod tests {
         assert!(sin_accion.contains("method=\"post\""));
     }
 
-
     #[test]
     fn lista_paginada_solo_crea_la_pagina_actual() {
-        let items: Vec<Nodo> = (1..=7)
-            .map(|n| Nodo::Texto(format!("fila {n}")))
-            .collect();
+        let items: Vec<Nodo> = (1..=7).map(|n| Nodo::Texto(format!("fila {n}"))).collect();
         let nodo = Nodo::ListaPaginada {
             variable: "pagina".into(),
             por_pagina: 3,
